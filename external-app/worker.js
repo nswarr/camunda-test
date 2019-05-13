@@ -15,22 +15,66 @@ const { Client, logger, Variables } = require("camunda-external-task-client-js")
 // configuration for the Client:
 //  - 'baseUrl': url to the Workflow Engine
 //  - 'logger': utility to automatically log important events
-const config = { baseUrl: CAMUNDA_REST_ENDPOINT, use: logger };
+const config = { baseUrl: CAMUNDA_REST_ENDPOINT };
 
 // create a Client instance with custom configuration
 const client = new Client(config);
 
-// susbscribe to the topic: 'external_check_id_task'
-client.subscribe("external_check_id_task", async function({ task, taskService }) {
+client.subscribe("identityCheck_findPersonsToBeIdentified", async function({ task, taskService }) {
 
-  // This is where we call some external system to get results
-  console.log(task);
+  console.log("Finding people who need their identity verified")
 
   const processVariables = new Variables();
-  processVariables.set("hasBegunIdentification", true);
+
+  //Pretend we found these folks in a DB
+  const nickSwarr = {
+      firstName: "Nick",
+      lastName: "Swarr",
+      country: "USA",
+      dob: "9/15/1982",
+      personId: 1
+  }
+
+  const abrahamLincoln = {
+        firstName: "Abraham",
+        lastName: "Lincoln",
+        country: "33 United States",
+        dob: "2/12/1809",
+        personId: 2
+  }
+
+  processVariables.set("personsToVerify", [nickSwarr, abrahamLincoln]) 
 
   // complete the task
   await taskService.complete(task, processVariables);
+});
+
+client.subscribe("identityCheck_callIdentityService", async function({ task, taskService }) {
+    const personsToVerify = task.variables.get("personsToVerify");
+
+    // This is where we call some external system to get results
+    console.log("Going to identify", personsToVerify);
+  
+    const identityScores = [
+        [1, 0.99],
+        [2, 0.75]
+    ]
+
+    const processVariables = new Variables();
+    processVariables.set("identityScores", identityScores)
+  
+    // complete the task
+    await taskService.complete(task, processVariables);
+});
+
+client.subscribe("identityCheck_recordIdentificationResults", async function({ task, taskService }) {
+    const identityScores = task.variables.get("identityScores");
+
+    // We'll record this info
+    console.log("Record scores", identityScores);
+  
+    // complete the task
+    await taskService.complete(task);
 });
 
 
@@ -46,7 +90,7 @@ app.get("/kick-off-id-process", async (req, res) => {
         json: {
             variables: { 
                 personIds: {
-                    value: JSON.stringify([1,2,3,200, 300]),
+                    value: JSON.stringify([1,2,3]), // faux DB IDs
                     type: "json"
                 }
             }
